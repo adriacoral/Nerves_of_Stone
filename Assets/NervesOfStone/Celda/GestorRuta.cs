@@ -10,10 +10,18 @@ public class GestorRuta : MonoBehaviour
     [SerializeField] private int maxCeldas = 5;
     [SerializeField] private LayerMask capaCeldas;
 
+    [Header("Casillas Obligatorias")]
+    [Tooltip("Casilla por la que el jugador debe empezar obligatoriamente")]
+    [SerializeField] private Celda casillaInicio;
+    [Tooltip("Casilla de meta donde termina la ruta")]
+    [SerializeField] private Celda casillaFinal;
+
     private readonly List<Celda> rutaActual = new List<Celda>();
     public IReadOnlyList<Celda> RutaActual => rutaActual;
 
-    // Avisará automáticamente al visualizador (Paso 2) cuando cambie la ruta
+    // Servirá en el Paso 3 para validar que la ruta llegó hasta la meta antes de mover las fichas
+    public bool RutaCompleta => casillaFinal != null && rutaActual.Count > 1 && rutaActual[rutaActual.Count - 1] == casillaFinal;
+
     public event Action<IReadOnlyList<Celda>> OnRutaActualizada;
 
     private Camera camaraPrincipal;
@@ -28,7 +36,6 @@ public class GestorRuta : MonoBehaviour
         if (Mouse.current == null || !Mouse.current.leftButton.wasPressedThisFrame)
             return;
 
-        // Evita clicar una celda cuando pulses el botón del Canvas en el Paso 3
         if (EventSystem.current != null && EventSystem.current.IsPointerOverGameObject())
             return;
 
@@ -51,7 +58,7 @@ public class GestorRuta : MonoBehaviour
 
     private void GestionarSeleccion(Celda celda)
     {
-        // Si haces clic en la última celda elegida, se quita (deshacer)
+        // 1. Si haces clic en la última celda elegida, se quita (deshacer)
         if (rutaActual.Count > 0 && rutaActual[rutaActual.Count - 1] == celda)
         {
             rutaActual.RemoveAt(rutaActual.Count - 1);
@@ -60,12 +67,31 @@ public class GestorRuta : MonoBehaviour
             return;
         }
 
-        // No repetir celdas ya elegidas ni pasar del límite
+        // 2. Si la ruta está vacía, obliga a empezar por la casilla de inicio
+        if (rutaActual.Count == 0 && casillaInicio != null && celda != casillaInicio)
+        {
+            Debug.Log($"Debes empezar por la casilla de inicio ({casillaInicio.name}).");
+            return;
+        }
+
+        // 3. Si ya se alcanzó la casilla final, bloquea añadir más casillas
+        if (RutaCompleta)
+        {
+            Debug.Log("Ruta ya completada hasta la meta. Desmarca la última casilla si quieres cambiarla.");
+            return;
+        }
+
+        // 4. No repetir celdas ni superar el límite
         if (rutaActual.Contains(celda) || rutaActual.Count >= maxCeldas)
             return;
 
         rutaActual.Add(celda);
-        Debug.Log($"Añadida {celda.name}. Seleccionadas: {rutaActual.Count}/{maxCeldas}");
+
+        if (celda == casillaFinal)
+            Debug.Log($"¡Ruta completa hasta {celda.name}! ({rutaActual.Count}/{maxCeldas})");
+        else
+            Debug.Log($"Añadida {celda.name}. Seleccionadas: {rutaActual.Count}/{maxCeldas}");
+
         OnRutaActualizada?.Invoke(rutaActual);
     }
 
